@@ -1,0 +1,131 @@
+---
+title: "SEC1-SA2-GROUP9-AGUILA,V-MASICAT,L-SA2"
+output: html_document
+date: "2024-05-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Bitcoin Trading
+
+Find out which probability distribution function best fits Bitcoin’s returns for trading data every minute, from January 1, 2012 to April 15, 2024, for Bitcoin quoted in United States dollars or the BTC/USD pair. 
+
+```{r start}
+# Define Tsallis distribution function
+rtsallis <- function(n, q, mean, sd) {
+  x <- rnorm(n, mean, sd)
+  x <- x / sqrt(q)
+  return(x)
+}
+
+# Load necessary libraries
+library(stats)
+
+# Load the CSV file
+df <- read.csv("/Users/veraaguila/Downloads/btcusd.csv")
+head(df, 10)
+# Convert 'Price' column to numeric
+df$Price <- as.numeric(as.character(df$Price))
+
+# Create a function to drop NA values and calculate returns
+DropNA <- function(x) {
+  x <- diff(log(x$Price))
+  x <- x[!is.na(x)]
+  return(x)
+}
+
+# Create random samples for each distribution and perform Kolmogorov-Smirnov tests
+distributions <- c("normal", "t", "cauchy", "tsallis", "powerlaw")
+results <- data.frame(Distribution = distributions, D_statistic = numeric(length(distributions)))
+
+for (dist in distributions) {
+  set.seed(123) # Set seed for reproducibility
+  df_teste <- switch(dist,
+                     normal = rnorm(length(DropNA(df)), mean = mean(DropNA(df)), sd = sd(DropNA(df))),
+                     t = rt(length(DropNA(df)), df = length(DropNA(df)) - 1),
+                     cauchy = rcauchy(length(DropNA(df)), location = mean(DropNA(df)), scale = sd(DropNA(df))),
+                     tsallis = rtsallis(length(DropNA(df)), q = 2, mean = mean(DropNA(df)), sd = sd(DropNA(df))),
+                     powerlaw = poweRlaw::rplcon(length(DropNA(df)), -0.3, sd(DropNA(df))))
+  
+  
+  ks_result <- ks.test(DropNA(df), df_teste)
+  results[results$Distribution == dist, "D_statistic"] <- ks_result$statistic
+}
+
+# Show the results
+results
+
+# Find the distribution with the smallest D_statistic
+best_distribution <- results[which.min(results$D_statistic), "Distribution"]
+best_statistic <- min(results$D_statistic)
+
+# Print the conclusion
+cat("The best-fitting distribution for Bitcoin's returns is", best_distribution, "with a D_statistic of", best_statistic, "\n")
+
+```
+```
+
+## Ethereum Trading
+Test using Shapiro-Wilk normality test the Ethereum returns for trading data every five minutes, from August 7, 2015 to April 15, 2024.
+
+
+```{r setup2, include=FALSE}
+
+
+library(knitr)
+
+library(readr)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r, include=FALSE}
+
+ETHD <- read_csv("/Users/veraaguila/Documents/ETH-USD.csv")
+# Remove rows with non-finite values
+ETHD <- ETHD[complete.cases(ETHD), ]
+
+str(ETHD)
+
+```
+
+```{r code}
+ETHD <- na.omit(ETHD)
+
+summary(ETHD)
+
+ggplot(ETHD, aes(x = Date, y = Close)) +
+  geom_line() +
+  labs(x = "Date", y = "Price (USD)", title = "Time Series of Ethereum Prices")
+
+ETHD$Return <- c(NA, diff(log(ETHD$Close)))
+
+summary(ETHD$Return)
+
+ggplot(ETHD, aes(x = Return)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black", na.rm = TRUE) +
+  labs(x = "Return", y = "Frequency", title = "Histogram of Ethereum Returns")
+
+ST <- shapiro.test(ETHD$Return)
+print("Shapiro-Wilk Test:")
+print(ST)
+
+alpha <- 0.05
+if (ST$p.value > alpha) {
+  print("The returns are normally distributed (fail to reject H0)")
+} else {
+  print("The returns are not normally distributed (reject H0)")
+}
+
+summTable <- ETHD %>%
+  summarize(
+    MeanReturn = mean(Return, na.rm = TRUE),
+    SDReturn = sd(Return, na.rm = TRUE),
+    MinReturn = min(Return, na.rm = TRUE),
+    MaxReturn = max(Return, na.rm = TRUE)
+  )
+kable(summTable)
+
+```
